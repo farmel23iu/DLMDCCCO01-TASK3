@@ -11,7 +11,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: sbs
+  storageClassName: sbs-5k
   resources:
     requests:
       storage: 10Gi

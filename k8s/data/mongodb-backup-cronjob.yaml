@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-backups
+  namespace: martianbank-data
+  labels:
+    app: mongodb-backup
+    app.kubernetes.io/name: mongodb-backup
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: sbs
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongodb-backup
+  namespace: martianbank-data
+  labels:
+    app: mongodb-backup
+    app.kubernetes.io/name: mongodb-backup
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: mongodb-backup
+            app.kubernetes.io/name: mongodb-backup
+            app.kubernetes.io/part-of: martianbank
+            environment: dlmdccco01-dev
+        spec:
+          restartPolicy: Never
+          serviceAccountName: martianbank-data
+          containers:
+            - name: mongodump
+              image: mongo:7
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  BACKUP_FILE="/backup/martianbank-$(date +%Y%m%d-%H%M%S).archive.gz"
+                  mongodump \
+                    --host=mongodb.martianbank-data.svc.cluster.local \
+                    --port=27017 \
+                    --username="${MONGO_INITDB_ROOT_USERNAME}" \
+                    --password="${MONGO_INITDB_ROOT_PASSWORD}" \
+                    --authenticationDatabase=admin \
+                    --archive="${BACKUP_FILE}" \
+                    --gzip
+                  find /backup -name "martianbank-*.archive.gz" -type f -mtime +7 -delete
+                  ls -lh /backup
+              envFrom:
+                - secretRef:
+                    name: mongodb-secrets
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: mongodb-backups

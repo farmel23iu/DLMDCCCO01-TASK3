@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: martianbank
+  namespace: martianbank-app
+  labels:
+    app.kubernetes.io/name: martianbank
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+  annotations:
+    kubernetes.io/ingress.class: caddy
+spec:
+  ingressClassName: caddy
+  rules:
+    - host: martianbank.iu-labs.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx
+                port:
+                  number: 8080

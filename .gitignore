@@ -25,6 +25,10 @@ dist-ssr
 *.sln
 *.sw?
 *.env
+secrets.local.yaml
+k8s/app/secrets.local.yaml
+k8s/data/mongodb-secret.local.yaml
+evidence/
 
 __pycache__
 

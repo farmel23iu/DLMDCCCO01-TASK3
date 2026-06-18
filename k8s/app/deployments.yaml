@@ -1,0 +1,474 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+  namespace: martianbank-app
+  labels:
+    app: ui
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ui
+  template:
+    metadata:
+      labels:
+        app: ui
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: ui
+          image: ghcr.io/cisco-open/martian-bank-demo-ui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: martianbank-app
+  labels:
+    app: nginx
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: nginx
+          image: ghcr.io/cisco-open/martian-bank-demo-nginx:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-auth
+  namespace: martianbank-app
+  labels:
+    app: customer-auth
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-auth
+  template:
+    metadata:
+      labels:
+        app: customer-auth
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: customer-auth
+          image: ghcr.io/cisco-open/martian-bank-demo-customer-auth:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          env:
+            - name: PORT
+              value: "8000"
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: martianbank-app-secrets
+                  key: DATABASE_HOST
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /docs.json
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /docs.json
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atm-locator
+  namespace: martianbank-app
+  labels:
+    app: atm-locator
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: atm-locator
+  template:
+    metadata:
+      labels:
+        app: atm-locator
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: atm-locator
+          image: ghcr.io/cisco-open/martian-bank-demo-atm-locator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          env:
+            - name: PORT
+              value: "8001"
+            - name: DATABASE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: martianbank-app-secrets
+                  key: DATABASE_HOST
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /docs.json
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /docs.json
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: martianbank-app
+  labels:
+    app: dashboard
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: dashboard
+          image: ghcr.io/cisco-open/martian-bank-demo-dashboard:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accounts
+  namespace: martianbank-app
+  labels:
+    app: accounts
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: accounts
+  template:
+    metadata:
+      labels:
+        app: accounts
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: accounts
+          image: ghcr.io/cisco-open/martian-bank-demo-accounts:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 50051
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transactions
+  namespace: martianbank-app
+  labels:
+    app: transactions
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: transactions
+  template:
+    metadata:
+      labels:
+        app: transactions
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: transactions
+          image: ghcr.io/cisco-open/martian-bank-demo-transactions:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 50052
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loan
+  namespace: martianbank-app
+  labels:
+    app: loan
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loan
+  template:
+    metadata:
+      labels:
+        app: loan
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      serviceAccountName: martianbank-app
+      containers:
+        - name: loan
+          image: ghcr.io/cisco-open/martian-bank-demo-loan:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 50053
+          envFrom:
+            - configMapRef:
+                name: martianbank-config
+            - secretRef:
+                name: martianbank-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

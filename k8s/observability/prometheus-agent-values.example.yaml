@@ -1,0 +1,26 @@
+# Example Prometheus Agent values for remote write to Scaleway Cockpit.
+# Replace placeholders before use and keep credentials out of Git.
+
+server:
+  remoteWrite:
+    - url: "https://metrics.cockpit.<region>.scw.cloud/api/v1/push"
+      basic_auth:
+        username: "CHANGE_ME_COCKPIT_USERNAME"
+        password: "CHANGE_ME_COCKPIT_TOKEN"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+kube-state-metrics:
+  enabled: true
+
+prometheus-node-exporter:
+  enabled: true
+
+alertmanager:
+  enabled: false
+

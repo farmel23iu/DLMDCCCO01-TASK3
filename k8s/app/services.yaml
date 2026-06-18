@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+  namespace: martianbank-app
+  labels:
+    app: ui
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: ui
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: martianbank-app
+  labels:
+    app: nginx
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-auth
+  namespace: martianbank-app
+  labels:
+    app: customer-auth
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: customer-auth
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atm-locator
+  namespace: martianbank-app
+  labels:
+    app: atm-locator
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: atm-locator
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: martianbank-app
+  labels:
+    app: dashboard
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: dashboard
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accounts
+  namespace: martianbank-app
+  labels:
+    app: accounts
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: accounts
+  ports:
+    - name: http
+      port: 50051
+      targetPort: 50051
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transactions
+  namespace: martianbank-app
+  labels:
+    app: transactions
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: transactions
+  ports:
+    - name: http
+      port: 50052
+      targetPort: 50052
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loan
+  namespace: martianbank-app
+  labels:
+    app: loan
+    app.kubernetes.io/part-of: martianbank
+spec:
+  type: ClusterIP
+  selector:
+    app: loan
+  ports:
+    - name: http
+      port: 50053
+      targetPort: 50053

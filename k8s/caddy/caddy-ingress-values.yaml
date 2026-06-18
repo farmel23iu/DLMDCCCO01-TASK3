@@ -1,0 +1,37 @@
+# Helm values for caddyserver/ingress.
+# Install with:
+# helm repo add caddy-ingress https://caddyserver.github.io/ingress/
+# helm upgrade --install caddy-ingress-controller caddy-ingress/caddy-ingress-controller \
+#   --namespace caddy-system --values k8s/caddy/caddy-ingress-values.yaml
+
+replicaCount: 2
+
+ingressController:
+  className: caddy
+  classNameRequired: true
+  verbose: false
+  config:
+    # Replace before installing. Caddy uses this for ACME account registration.
+    email: "replace-with-your-email@example.com"
+    metrics: true
+    debug: false
+
+loadBalancer:
+  enabled: true
+  externalTrafficPolicy: Cluster
+  annotations: {}
+  labels:
+    environment: dlmdccco01-dev
+    app.kubernetes.io/part-of: martianbank
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podDisruptionBudget:
+  minAvailable: 1
+

@@ -1,0 +1,29 @@
+# Example Promtail values for sending Kubernetes logs to a Loki-compatible
+# endpoint such as Scaleway Cockpit. Replace placeholders before use.
+
+config:
+  clients:
+    - url: "https://logs.cockpit.<region>.scw.cloud/loki/api/v1/push"
+      basic_auth:
+        username: "CHANGE_ME_COCKPIT_USERNAME"
+        password: "CHANGE_ME_COCKPIT_TOKEN"
+  snippets:
+    extraRelabelConfigs:
+      - source_labels:
+          - __meta_kubernetes_namespace
+        target_label: namespace
+      - source_labels:
+          - __meta_kubernetes_pod_name
+        target_label: pod
+      - source_labels:
+          - __meta_kubernetes_pod_container_name
+        target_label: container
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+

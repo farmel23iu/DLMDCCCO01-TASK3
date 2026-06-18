@@ -1,0 +1,67 @@
+# Example only. Do not apply without selecting the correct BACKUP_FILE.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-restore-manual
+  namespace: martianbank-data
+  labels:
+    app: mongodb-restore
+    app.kubernetes.io/name: mongodb-restore
+    app.kubernetes.io/part-of: martianbank
+    environment: dlmdccco01-dev
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: mongodb-restore
+        app.kubernetes.io/name: mongodb-restore
+        app.kubernetes.io/part-of: martianbank
+        environment: dlmdccco01-dev
+    spec:
+      restartPolicy: Never
+      serviceAccountName: martianbank-data
+      containers:
+        - name: mongorestore
+          image: mongo:7
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              test -n "${BACKUP_FILE}"
+              test -f "/backup/${BACKUP_FILE}"
+              mongorestore \
+                --host=mongodb.martianbank-data.svc.cluster.local \
+                --port=27017 \
+                --username="${MONGO_INITDB_ROOT_USERNAME}" \
+                --password="${MONGO_INITDB_ROOT_PASSWORD}" \
+                --authenticationDatabase=admin \
+                --archive="/backup/${BACKUP_FILE}" \
+                --gzip \
+                --drop
+          envFrom:
+            - secretRef:
+                name: mongodb-secrets
+          env:
+            - name: BACKUP_FILE
+              value: "CHANGE_ME_BACKUP_FILE.archive.gz"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+      volumes:
+        - name: backup-storage
+          persistentVolumeClaim:
+            claimName: mongodb-backups

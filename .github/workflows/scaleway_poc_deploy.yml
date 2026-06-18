@@ -1,0 +1,283 @@
+name: Scaleway PoC Build Scan Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy to Scaleway Kapsule after build and scan"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      image_tag:
+        description: "Optional image tag override. Defaults to the commit SHA."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  SCW_REGION: fr-par
+  REGISTRY_ENDPOINT: rg.fr-par.scw.cloud
+  REGISTRY_NAMESPACE: registry-dlmdccco01-dev
+  APP_NAMESPACE: martianbank-app
+  DATA_NAMESPACE: martianbank-data
+  CADDY_NAMESPACE: caddy-system
+  DEFAULT_TARGET_DOMAIN: martianbank.iu-labs.de
+
+jobs:
+  build-and-scan:
+    name: Build and scan ${{ matrix.service.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - image: martian-bank-demo-ui
+            context: ./ui
+            dockerfile: ./ui/Dockerfile
+          - image: martian-bank-demo-nginx
+            context: ./nginx
+            dockerfile: ./nginx/Dockerfile
+          - image: martian-bank-demo-customer-auth
+            context: ./customer-auth
+            dockerfile: ./customer-auth/Dockerfile
+          - image: martian-bank-demo-atm-locator
+            context: ./atm-locator
+            dockerfile: ./atm-locator/Dockerfile
+          - image: martian-bank-demo-dashboard
+            context: .
+            dockerfile: ./dashboard/Dockerfile
+          - image: martian-bank-demo-accounts
+            context: .
+            dockerfile: ./accounts/Dockerfile
+          - image: martian-bank-demo-transactions
+            context: .
+            dockerfile: ./transactions/Dockerfile
+          - image: martian-bank-demo-loan
+            context: .
+            dockerfile: ./loan/Dockerfile
+          - image: martian-bank-demo-locust
+            context: ./performance_locust
+            dockerfile: ./performance_locust/Dockerfile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Log in to Scaleway Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_ENDPOINT }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY_ENDPOINT }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.service.image }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY_ENDPOINT }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.service.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY_ENDPOINT }}/${{ env.REGISTRY_NAMESPACE }}/${{ matrix.service.image }}:${{ env.IMAGE_TAG }}
+          format: table
+          output: trivy-${{ matrix.service.image }}.txt
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-${{ matrix.service.image }}
+          path: trivy-${{ matrix.service.image }}.txt
+
+  scan-manifests:
+    name: Scan Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan manifests with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: k8s
+          format: table
+          output: trivy-k8s-config.txt
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+
+      - name: Upload manifest scan report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-k8s-config
+          path: trivy-k8s-config.txt
+
+  deploy:
+    name: Deploy to Scaleway Kapsule
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-scan
+      - scan-manifests
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy == 'true' }}
+    environment: DLMDCCCO01-DEV
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve deployment variables
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "IMAGE_TAG=${{ inputs.image_tag }}" >> "$GITHUB_ENV"
+          else
+            echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          fi
+
+          if [ -n "${{ secrets.TARGET_DOMAIN }}" ]; then
+            echo "TARGET_DOMAIN=${{ secrets.TARGET_DOMAIN }}" >> "$GITHUB_ENV"
+          else
+            echo "TARGET_DOMAIN=${DEFAULT_TARGET_DOMAIN}" >> "$GITHUB_ENV"
+          fi
+
+          echo "REGISTRY=${REGISTRY_ENDPOINT}/${REGISTRY_NAMESPACE}" >> "$GITHUB_ENV"
+
+      - name: Install kubectl and Helm
+        uses: azure/setup-kubectl@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+          kubectl cluster-info
+
+      - name: Install or upgrade Caddy ingress controller
+        run: |
+          kubectl apply -f k8s/namespaces/namespaces.yaml
+          helm repo add caddy-ingress https://caddyserver.github.io/ingress/
+          helm repo update
+          helm upgrade --install caddy-ingress-controller caddy-ingress/caddy-ingress-controller \
+            --namespace "${CADDY_NAMESPACE}" \
+            --values k8s/caddy/caddy-ingress-values.yaml \
+            --set "ingressController.config.email=${{ secrets.CADDY_ACME_EMAIL }}"
+
+      - name: Create application secrets
+        run: |
+          kubectl apply -f k8s/security/rbac.yaml
+          kubectl -n "${APP_NAMESPACE}" create secret generic martianbank-app-secrets \
+            --from-literal=DB_URL="mongodb://root:${{ secrets.MONGODB_ROOT_PASSWORD }}@mongodb.${DATA_NAMESPACE}.svc.cluster.local:27017" \
+            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+            --from-literal=DATABASE_HOST="root:${{ secrets.MONGODB_ROOT_PASSWORD }}@mongodb.${DATA_NAMESPACE}.svc.cluster.local" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "${DATA_NAMESPACE}" create secret generic mongodb-secrets \
+            --from-literal=MONGO_INITDB_ROOT_USERNAME="root" \
+            --from-literal=MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGODB_ROOT_PASSWORD }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Create registry pull secret
+        run: |
+          kubectl -n "${APP_NAMESPACE}" create secret docker-registry registry-dlmdccco01-dev \
+            --docker-server="${REGISTRY_ENDPOINT}" \
+            --docker-username="${{ secrets.REGISTRY_USERNAME }}" \
+            --docker-password="${{ secrets.REGISTRY_PASSWORD }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "${APP_NAMESPACE}" patch serviceaccount martianbank-app \
+            -p '{"imagePullSecrets":[{"name":"registry-dlmdccco01-dev"}]}'
+
+      - name: Apply MartianBank manifests
+        run: |
+          kubectl apply -f k8s/data/mongodb-service.yaml
+          kubectl apply -f k8s/data/mongodb-statefulset.yaml
+          kubectl apply -f k8s/data/mongodb-backup-cronjob.yaml
+          kubectl -n "${DATA_NAMESPACE}" rollout status statefulset/mongodb --timeout=240s
+          kubectl apply -f k8s/app/configmap.yaml
+          kubectl apply -f k8s/app/services.yaml
+          kubectl apply -f k8s/app/deployments.yaml
+          kubectl apply -f k8s/app/ingress.yaml
+          kubectl apply -f k8s/app/hpa.yaml
+          kubectl apply -f k8s/security/networkpolicy-app.yaml
+          kubectl apply -f k8s/security/networkpolicy-app-to-db.yaml
+
+      - name: Set deployed image tags
+        run: |
+          kubectl -n "${APP_NAMESPACE}" set image deployment/ui ui="${REGISTRY}/martian-bank-demo-ui:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/nginx nginx="${REGISTRY}/martian-bank-demo-nginx:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/customer-auth customer-auth="${REGISTRY}/martian-bank-demo-customer-auth:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/atm-locator atm-locator="${REGISTRY}/martian-bank-demo-atm-locator:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/dashboard dashboard="${REGISTRY}/martian-bank-demo-dashboard:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/accounts accounts="${REGISTRY}/martian-bank-demo-accounts:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/transactions transactions="${REGISTRY}/martian-bank-demo-transactions:${IMAGE_TAG}"
+          kubectl -n "${APP_NAMESPACE}" set image deployment/loan loan="${REGISTRY}/martian-bank-demo-loan:${IMAGE_TAG}"
+
+      - name: Patch target domain
+        run: |
+          kubectl -n "${APP_NAMESPACE}" patch ingress martianbank --type=json \
+            -p "[{\"op\":\"replace\",\"path\":\"/spec/rules/0/host\",\"value\":\"${TARGET_DOMAIN}\"}]"
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/ui --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/nginx --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/customer-auth --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/atm-locator --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/dashboard --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/accounts --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/transactions --timeout=180s
+          kubectl -n "${APP_NAMESPACE}" rollout status deploy/loan --timeout=180s
+
+      - name: Collect deployment evidence
+        if: always()
+        run: |
+          mkdir -p evidence
+          kubectl get nodes -o wide > evidence/kubectl-get-nodes.txt
+          kubectl get storageclass > evidence/kubectl-get-storageclass.txt
+          kubectl get namespaces > evidence/kubectl-get-namespaces.txt
+          kubectl get svc -n "${CADDY_NAMESPACE}" > evidence/kubectl-get-svc-caddy.txt
+          kubectl get pods -n "${APP_NAMESPACE}" -o wide > evidence/kubectl-get-pods-app.txt
+          kubectl get svc -n "${APP_NAMESPACE}" > evidence/kubectl-get-svc-app.txt
+          kubectl get ingress -n "${APP_NAMESPACE}" > evidence/kubectl-get-ingress-app.txt
+          kubectl get pods -n "${DATA_NAMESPACE}" -o wide > evidence/kubectl-get-pods-data.txt
+          kubectl get svc -n "${DATA_NAMESPACE}" > evidence/kubectl-get-svc-data.txt
+          kubectl get statefulset -n "${DATA_NAMESPACE}" > evidence/kubectl-get-statefulset-data.txt
+          kubectl get pvc -n "${DATA_NAMESPACE}" > evidence/kubectl-get-pvc-data.txt
+          kubectl get cronjob -n "${DATA_NAMESPACE}" > evidence/kubectl-get-cronjob-data.txt
+          kubectl get networkpolicy -n "${APP_NAMESPACE}" > evidence/kubectl-get-networkpolicy-app.txt
+          kubectl get networkpolicy -n "${DATA_NAMESPACE}" > evidence/kubectl-get-networkpolicy-data.txt
+          kubectl logs -n "${CADDY_NAMESPACE}" deploy/caddy-ingress-controller --tail=200 > evidence/caddy-logs.txt || true
+          kubectl logs -n "${APP_NAMESPACE}" deploy/nginx --tail=200 > evidence/nginx-logs.txt || true
+          kubectl logs -n "${DATA_NAMESPACE}" statefulset/mongodb --tail=200 > evidence/mongodb-logs.txt || true
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence
+          path: evidence/

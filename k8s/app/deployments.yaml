@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: ui
@@ -65,7 +65,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: nginx
@@ -103,11 +103,6 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 20
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -119,7 +114,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: customer-auth
@@ -186,7 +181,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: atm-locator
@@ -253,7 +248,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: dashboard
@@ -312,7 +307,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: accounts
@@ -369,7 +364,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: transactions
@@ -426,7 +421,7 @@ metadata:
     app.kubernetes.io/part-of: martianbank
     environment: dlmdccco01-dev
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: loan

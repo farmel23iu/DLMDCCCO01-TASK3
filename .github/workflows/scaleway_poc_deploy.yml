@@ -192,16 +192,20 @@ jobs:
             --set "ingressController.config.email=${{ secrets.CADDY_ACME_EMAIL }}"
 
       - name: Create application secrets
+        env:
+          MONGODB_ROOT_PASSWORD: ${{ secrets.MONGODB_ROOT_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           kubectl apply -f k8s/security/rbac.yaml
+          ENCODED_MONGODB_ROOT_PASSWORD="$(python3 -c 'import os, urllib.parse; print(urllib.parse.quote_plus(os.environ["MONGODB_ROOT_PASSWORD"]))')"
           kubectl -n "${APP_NAMESPACE}" create secret generic martianbank-app-secrets \
-            --from-literal=DB_URL="mongodb://root:${{ secrets.MONGODB_ROOT_PASSWORD }}@mongodb.${DATA_NAMESPACE}.svc.cluster.local:27017" \
-            --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-            --from-literal=DATABASE_HOST="root:${{ secrets.MONGODB_ROOT_PASSWORD }}@mongodb.${DATA_NAMESPACE}.svc.cluster.local" \
+            --from-literal=DB_URL="mongodb://root:${ENCODED_MONGODB_ROOT_PASSWORD}@mongodb.${DATA_NAMESPACE}.svc.cluster.local:27017" \
+            --from-literal=JWT_SECRET="${JWT_SECRET}" \
+            --from-literal=DATABASE_HOST="root:${ENCODED_MONGODB_ROOT_PASSWORD}@mongodb.${DATA_NAMESPACE}.svc.cluster.local" \
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl -n "${DATA_NAMESPACE}" create secret generic mongodb-secrets \
             --from-literal=MONGO_INITDB_ROOT_USERNAME="root" \
-            --from-literal=MONGO_INITDB_ROOT_PASSWORD="${{ secrets.MONGODB_ROOT_PASSWORD }}" \
+            --from-literal=MONGO_INITDB_ROOT_PASSWORD="${MONGODB_ROOT_PASSWORD}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Create registry pull secret

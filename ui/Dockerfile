@@ -9,7 +9,7 @@ RUN npm ci --silent
 COPY . ./
 RUN npm run build
 
-FROM --platform=linux/amd64 nginx:1.27-alpine
+FROM --platform=linux/amd64 nginxinc/nginx-unprivileged:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /bankapp/dist /usr/share/nginx/html
 COPY --from=build /bankapp/src/assets /usr/share/nginx/html/src/assets

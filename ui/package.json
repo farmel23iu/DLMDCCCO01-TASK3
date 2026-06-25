@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "ui": "vite",
-    "build": "npm run build",
+    "build": "vite build",
     "lint": "eslint src --ext js,jsx --report-unused-disable-directives --max-warnings 0 --fix",
     "preview": "vite preview",
     "client": "npm run dev"
